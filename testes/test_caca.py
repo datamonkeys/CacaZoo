@@ -114,6 +114,32 @@ class TesteCeu(unittest.TestCase):
         self.assertEqual(it["conhecido"], "catálogo não respondeu")
 
 
+    def test_um_catalogo_fora_do_ar_nao_vira_descoberta(self):
+        for cw, ga in ((None, []), ([], None)):
+            it = {"nota": 9.0, "motivo": "", "meta": self.META, "pos": [10, 10]}
+            with mock.patch.object(caca, "catwise_movendo", return_value=cw), \
+                 mock.patch.object(caca, "gaia_movendo", return_value=ga), \
+                 mock.patch.object(caca.time, "sleep"):
+                caca.checar_conhecidos([it])
+            self.assertEqual(it["conhecido"], "catálogo não respondeu")
+
+    def test_um_catalogo_fora_mas_outro_acha_mover(self):
+        it = {"nota": 9.0, "motivo": "", "meta": self.META, "pos": [10, 10]}
+        with mock.patch.object(caca, "catwise_movendo", return_value=None), \
+             mock.patch.object(caca, "gaia_movendo", return_value=[("Gaia DR3 7", 0.2)]), \
+             mock.patch.object(caca.time, "sleep"):
+            caca.checar_conhecidos([it])
+        self.assertTrue(it["conhecido"].startswith("já catalogado"))
+
+    def test_os_dois_vazios_e_possivel_descoberta(self):
+        it = {"nota": 9.0, "motivo": "", "meta": self.META, "pos": [10, 10]}
+        with mock.patch.object(caca, "catwise_movendo", return_value=[]), \
+             mock.patch.object(caca, "gaia_movendo", return_value=[]), \
+             mock.patch.object(caca.time, "sleep"):
+            caca.checar_conhecidos([it])
+        self.assertTrue(it["conhecido"].startswith("NADA"))
+
+
 class TesteArquivos(unittest.TestCase):
     def test_gravar_atomico_e_ler_corrompido(self):
         with tempfile.TemporaryDirectory() as d:
@@ -131,6 +157,18 @@ class TesteArquivos(unittest.TestCase):
         h = caca.relatorio({"kn": (proj, [it])})
         self.assertIn("&lt;b&gt;x&lt;/b&gt;", h)
         self.assertIn("&amp;c=&quot;2&quot;", h)
+
+    def test_reusar_reavalia_o_que_foi_salvo(self):
+        salvo = {"aa": [{"id": "9", "meta": {}, "urls": ["https://x/1.png"], "nota": 0, "motivo": ""}]}
+        novo = {"id": "9", "urls": ["https://x/1.png"], "nota": 3.5, "motivo": "reavaliado", "meta": {}}
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(caca, "AQUI", d), \
+             mock.patch.object(caca, "_seguro", return_value=novo) as seg, \
+             mock.patch.object(sys, "argv", ["caca.py", "--reusar", "--projeto", "aa"]):
+            caca.gravar_json(os.path.join(d, "resultados.json"), salvo)
+            caca.main()
+            r = caca.ler_json(os.path.join(d, "resultados.json"), {})
+        self.assertEqual(seg.call_args[0][1]["locations"], [{"image/png": "https://x/1.png"}])
+        self.assertEqual(r["aa"][0]["nota"], 3.5)
 
     def test_reusar_sem_projeto_nao_quebra(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.object(caca, "AQUI", d), \

@@ -288,12 +288,12 @@ def checar_conhecidos(itens, corte=6.0):
             continue
         ra, dec = ceu_byw(it["meta"], *it["pos"], *it.get("lado", (946, 946)))
         cw, ga = catwise_movendo(ra, dec), gaia_movendo(ra, dec)
-        mov = None if cw is None and ga is None else [("CWISE " + n, pm) for n, pm in cw or []] + (ga or [])
+        mov = sorted([("CWISE " + n, pm) for n, pm in cw or []] + (ga or []), key=lambda x: -x[1])
         it["ceu"] = (round(ra, 5), round(dec, 5))
-        if mov is None:
+        if mov:  # basta um catálogo achar algo se movendo
+            it["conhecido"] = "já catalogado: " + ", ".join(f"{n} ({pm}\"/ano)" for n, pm in mov[:2])
+        elif cw is None or ga is None:  # sem os dois não dá para dizer que é novo
             it["conhecido"] = "catálogo não respondeu"
-        elif mov:
-            it["conhecido"] = "já catalogado: " + ", ".join(f"{n} ({pm}\"/ano)" for n, pm in sorted(mov, key=lambda x: -x[1])[:2])
         else:
             it["conhecido"] = "NADA no CatWISE/Gaia se movendo aqui — possível descoberta, confira no WiseView"
         time.sleep(0.5)
