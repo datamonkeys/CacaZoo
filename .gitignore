@@ -1,0 +1,7 @@
+cache/
+report.html
+resultados.json
+avisados.json
+diaria.log
+diaria.err
+__pycache__/
