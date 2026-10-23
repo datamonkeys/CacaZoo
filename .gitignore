@@ -5,3 +5,4 @@ avisados.json
 diaria.log
 diaria.err
 __pycache__/
+*.tmp

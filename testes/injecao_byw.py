@@ -7,7 +7,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import caca
 
 rng = np.random.default_rng(1)
-dados = json.load(open(os.path.join(caca.AQUI, "resultados.json")))["byw"]
+from _dados import resultados
+# amostra fixa para a validação ser reproduzível e rodar em minutos: --n 300 (padrão)
+N = int(sys.argv[sys.argv.index("--n") + 1]) if "--n" in sys.argv else 300
+dados = resultados("byw")[:N]
 arq = lambda u: os.path.join(caca.CACHE, u.rsplit("/", 1)[-1])
 tmp = tempfile.mkdtemp()
 limpos, achados = [], []
@@ -29,10 +32,10 @@ for it in dados:
             q = os.path.join(tmp, f"{k}.png")
             Image.fromarray(np.clip(im, 0, 255).astype(np.uint8)).save(q)
             novos.append(q)
-        nota, motivo = caca.nota_byw(novos)
+        nota, motivo, extra = caca.nota_byw(novos)
         # acertou se apontou para o ponto final da injeção
         ex, ey = x0 + np.cos(ang) * passo, y0 + np.sin(ang) * passo
-        px, py = map(int, motivo.rsplit("(", 1)[1].rstrip(")").split(","))
+        px, py = extra["pos"]
         achados.append((amp, nota, np.hypot(px - ex, py - ey) < 30))
         if os.environ.get("DEBUG"): print(f"{len(imgs)}q passo {passo:.0f} amp {amp} nota {nota:.1f} {motivo}")
 

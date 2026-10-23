@@ -8,7 +8,7 @@ A classificação continua sendo feita por você no Zooniverse.
 
 uso: python3 caca.py [--n 40] [--projeto byw|aa|kn]
 """
-import argparse, html, io, json, os, sys, time, urllib.request
+import argparse, html, json, os, sys, tempfile, time, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -16,7 +16,8 @@ from PIL import Image
 from scipy import ndimage
 
 API = "https://www.zooniverse.org/api"
-HDR = {"Accept": "application/vnd.api+json; version=1", "User-Agent": "CacaZoo/0.1"}
+REPO = "https://github.com/louisperner/CacaZoo"
+HDR = {"Accept": "application/vnd.api+json; version=1", "User-Agent": f"CacaZoo/0.2 (+{REPO})"}
 AQUI = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(AQUI, "cache")
 
@@ -30,19 +31,48 @@ PROJETOS = {
 }
 
 
+def abrir(url, timeout, tentativas=4):
+    """Conteúdo da URL, com novas tentativas e espera crescente (1, 2, 4 s)."""
+    for i in range(tentativas):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=HDR), timeout=timeout) as r:
+                return r.read()
+        except Exception:
+            if i == tentativas - 1:
+                raise
+            time.sleep(2 ** i)
+
+
 def get_json(url):
-    req = urllib.request.Request(url, headers=HDR)
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
+    return json.loads(abrir(url, 30))
+
+
+def gravar(caminho, dados):
+    """Grava num temporário e troca no fim: crash ou dois threads no mesmo
+    arquivo nunca deixam um arquivo pela metade no lugar."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(caminho), suffix=".tmp")
+    with os.fdopen(fd, "wb") as f:
+        f.write(dados)
+    os.replace(tmp, caminho)
+
+
+def gravar_json(caminho, obj, **kw):
+    gravar(caminho, json.dumps(obj, **kw).encode())
+
+
+def ler_json(caminho, padrao):
+    try:
+        with open(caminho) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return padrao
 
 
 def baixar(url):
     os.makedirs(CACHE, exist_ok=True)
     caminho = os.path.join(CACHE, url.rsplit("/", 1)[-1])
     if not os.path.exists(caminho):
-        req = urllib.request.Request(url, headers=HDR)
-        with urllib.request.urlopen(req, timeout=60) as r, open(caminho, "wb") as f:
-            f.write(r.read())
+        gravar(caminho, abrir(url, 60))
     return caminho
 
 
@@ -117,7 +147,8 @@ def nota_byw(imgs):
     dist = np.hypot(yn + max(0, yp - r) - yp, xn + max(0, xp - r) - xp)
     forca = min(pos[yp, xp], janela[yn, xn])
     nota = float(forca) if dist > 4 else float(forca) * 0.3
-    return nota, f"par claro/escuro de {forca:.1f}σ, deslocamento {dist:.0f}px em ({xp},{yp})"
+    extra = {"pos": [int(xp), int(yp)], "lado": [int(d.shape[1]), int(d.shape[0])]}
+    return nota, f"par claro/escuro de {forca:.1f}σ, deslocamento {dist:.0f}px em ({xp},{yp})", extra
 
 
 def nota_aa(imgs):
@@ -183,23 +214,27 @@ def avaliar(chave, s):
     urls = [list(l.values())[0] for l in s["locations"]]
     imgs = [baixar(u) for u in urls]
     meta = s.get("metadata", {})
+    extra = {}
     if chave == "byw":
-        nota, motivo = nota_byw(imgs)
+        nota, motivo, extra = nota_byw(imgs)
     elif chave == "aa":
         nota, motivo = nota_aa(imgs)
     else:
         nota, motivo = nota_kn(imgs, meta)
-    return dict(id=s["id"], urls=urls, nota=round(nota, 2), motivo=motivo, meta=meta)
+    return dict(id=s["id"], urls=urls, nota=round(nota, 2), motivo=motivo, meta=meta, **extra)
 
 
 # --- já é conhecido? ------------------------------------------------------
 
-def ceu_byw(meta, xp, yp, lado=946):
-    """Pixel do recorte do Backyard Worlds -> RA/Dec (norte em cima, leste à esquerda)."""
+def ceu_byw(meta, xp, yp, largura=946, altura=946):
+    """Pixel do recorte do Backyard Worlds -> RA/Dec (norte em cima, leste à esquerda).
+    O FOV vem nos metadados como "118.25 x 101.75 arcseconds" (largura x altura)."""
     ra0, de0 = float(meta["RA"]), float(meta["DEC"])
-    fov = float(str(meta.get("FOV", "118.25")).split()[0])  # arcsec
-    esc = fov / lado
-    dx, dy = (xp - lado / 2) * esc, (yp - lado / 2) * esc
+    partes = str(meta.get("FOV", "118.25")).replace("x", " ").split()
+    fov_x = float(partes[0])
+    fov_y = float(partes[1]) if len(partes) > 1 and partes[1].replace(".", "", 1).isdigit() else fov_x
+    dx = (xp - largura / 2) * fov_x / largura
+    dy = (yp - altura / 2) * fov_y / altura
     return ra0 - dx / 3600 / np.cos(np.radians(de0)), de0 - dy / 3600
 
 
@@ -208,8 +243,7 @@ def catwise_movendo(ra, dec, raio=40):
     url = ("https://vizier.cds.unistra.fr/viz-bin/asu-tsv?-source=II/365/catwise"
            f"&-c={ra:.5f}%20{dec:+.5f}&-c.rs={raio}&-out=Name,pmRA,pmDE,e_pmRA,e_pmDE&-out.max=50")
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=HDR), timeout=30) as r:
-            linhas = r.read().decode().splitlines()
+        linhas = abrir(url, 30, tentativas=3).decode().splitlines()
     except Exception:
         return None  # sem resposta: não dá para afirmar nada
     achados = []
@@ -231,8 +265,7 @@ def gaia_movendo(ra, dec, raio=40):
     url = ("https://vizier.cds.unistra.fr/viz-bin/asu-tsv?-source=I/355/gaiadr3"
            f"&-c={ra:.5f}%20{dec:+.5f}&-c.rs={raio}&-out=Source,pmRA,pmDE&-out.max=50")
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=HDR), timeout=30) as r:
-            linhas = r.read().decode().splitlines()
+        linhas = abrir(url, 30, tentativas=3).decode().splitlines()
     except Exception:
         return None
     achados = []
@@ -251,10 +284,9 @@ def gaia_movendo(ra, dec, raio=40):
 def checar_conhecidos(itens, corte=6.0):
     """Só para os candidatos fortes do Backyard Worlds (consulta externa)."""
     for it in itens:
-        if it["nota"] < corte or "(" not in it["motivo"]:
+        if it["nota"] < corte or "pos" not in it or "RA" not in it["meta"]:
             continue
-        xp, yp = map(int, it["motivo"].rsplit("(", 1)[1].rstrip(")").split(","))
-        ra, dec = ceu_byw(it["meta"], xp, yp)
+        ra, dec = ceu_byw(it["meta"], *it["pos"], *it.get("lado", (946, 946)))
         cw, ga = catwise_movendo(ra, dec), gaia_movendo(ra, dec)
         mov = None if cw is None and ga is None else [("CWISE " + n, pm) for n, pm in cw or []] + (ga or [])
         it["ceu"] = (round(ra, 5), round(dec, 5))
@@ -289,7 +321,7 @@ a{color:#7cf}small{color:#999}.blink{position:relative}</style>
                 mostra = imgs[:5]
             else:
                 mostra = imgs[:1]
-            tags = "".join(f'<img src="{u}" loading="lazy">' for u in mostra)
+            tags = "".join(f'<img src="{html.escape(u)}" loading="lazy">' for u in mostra)
             partes.append(
                 f'<div class="c"><div class="n">{it["nota"]}</div><div>{tags}<br>'
                 f'<small>#{it["id"]} · {html.escape(it["motivo"])}</small><br>'
@@ -300,21 +332,24 @@ a{color:#7cf}small{color:#999}.blink{position:relative}</style>
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="Triagem de objetos do Zooniverse (Backyard Worlds, Active Asteroids, Kilonova Seekers).")
     ap.add_argument("--n", type=int, default=40, help="objetos por projeto")
     ap.add_argument("--projeto", choices=list(PROJETOS), action="append")
     ap.add_argument("--reusar", action="store_true", help="reavalia os objetos do último resultados.json (cache local)")
     args = ap.parse_args()
+    caminho = os.path.join(AQUI, "resultados.json")
     anteriores = {}
     if args.reusar:
-        with open(os.path.join(AQUI, "resultados.json")) as f:
-            for chave, itens in json.load(f).items():
-                anteriores[chave] = [dict(id=i["id"], metadata=i["meta"],
-                                          locations=[{"image/png": u} for u in i["urls"]]) for i in itens]
+        for chave, itens in ler_json(caminho, {}).items():
+            anteriores[chave] = [dict(id=i["id"], metadata=i["meta"],
+                                      locations=[{"image/png": u} for u in i["urls"]]) for i in itens]
     resultados = {}
     for chave in args.projeto or list(PROJETOS):
         proj = PROJETOS[chave]
         print(f"{proj['nome']}: buscando {args.n} objetos…", file=sys.stderr)
+        if args.reusar and chave not in anteriores:
+            print("  nada salvo deste projeto para reusar; pulando", file=sys.stderr)
+            continue
         subs = anteriores[chave] if args.reusar else fila(proj["workflow"], args.n)
         with ThreadPoolExecutor(8) as ex:
             itens = []
@@ -328,16 +363,11 @@ def main():
         for it in top:
             print(f"  {it['nota']:6.2f}  #{it['id']}  {it['motivo']}  {it.get('conhecido', '')}", file=sys.stderr)
     # rodada parcial (--projeto) mantém os outros projetos do último resultado
-    caminho = os.path.join(AQUI, "resultados.json")
-    if os.path.exists(caminho):
-        with open(caminho) as f:
-            for chave, itens in json.load(f).items():
-                if chave not in resultados:
-                    resultados[chave] = (PROJETOS[chave], itens)
-    with open(os.path.join(AQUI, "report.html"), "w") as f:
-        f.write(relatorio(resultados))
-    with open(os.path.join(AQUI, "resultados.json"), "w") as f:
-        json.dump({k: v[1] for k, v in resultados.items()}, f, ensure_ascii=False, indent=1)
+    for chave, itens in ler_json(caminho, {}).items():
+        if chave not in resultados and chave in PROJETOS:
+            resultados[chave] = (PROJETOS[chave], itens)
+    gravar(os.path.join(AQUI, "report.html"), relatorio(resultados).encode())
+    gravar_json(caminho, {k: v[1] for k, v in resultados.items()}, ensure_ascii=False, indent=1)
     print(os.path.join(AQUI, "report.html"))
 
 
@@ -345,7 +375,7 @@ def _seguro(chave, s):
     try:
         return avaliar(chave, s)
     except Exception as e:  # um objeto quebrado não derruba a rodada
-        print(f"  erro em #{s['id']}: {e}", file=sys.stderr)
+        print(f"  erro em #{s.get('id')}: {e}", file=sys.stderr)
         return None
 
 

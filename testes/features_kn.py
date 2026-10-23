@@ -30,7 +30,8 @@ def feats(p, meta):
     out["mag"] = float(meta.get("mag") or 0)
     return out
 
-subs = json.load(open(os.path.join(caca.CACHE, "kn_treino.json")))
+from _dados import treino_kn
+subs = treino_kn()
 X, y = [], []
 for s in subs:
     p = caca.baixar(list(s["locations"][0].values())[0])
@@ -41,4 +42,4 @@ def auc(v):
 for k in X[0]:
     v = np.array([x[k] for x in X]); a = auc(v)
     print(f"{k:14s} AUC {max(a, 1-a):.2f} {'(maior=real)' if a >= .5 else '(menor=real)'}")
-json.dump({"X": [{k: float(v) for k, v in x.items()} for x in X], "y": y.tolist()}, open(os.path.join(caca.CACHE, "kn_feats.json"), "w"))
+caca.gravar_json(os.path.join(caca.CACHE, "kn_feats.json"), {"X": [{k: float(v) for k, v in x.items()} for x in X], "y": y.tolist()})

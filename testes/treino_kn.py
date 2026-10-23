@@ -5,7 +5,8 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import caca
 
-subs = json.load(open(os.path.join(caca.CACHE, "kn_treino.json")))
+from _dados import treino_kn
+subs = treino_kn()
 reais, bogus = [], []
 for s in subs:
     r = caca.avaliar("kn", s)

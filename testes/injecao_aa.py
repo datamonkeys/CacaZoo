@@ -7,7 +7,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import caca
 
 rng = np.random.default_rng(2)
-dados = json.load(open(os.path.join(caca.AQUI, "resultados.json")))["aa"]
+from _dados import resultados
+dados = resultados("aa")
 arq = lambda u: os.path.join(caca.CACHE, u.rsplit("/", 1)[-1])
 tmp = tempfile.mkdtemp()
 limpos, achados = [], []

@@ -1,37 +1,64 @@
 # CacaZoo
 
-Triagem automática de três projetos do Zooniverse que dão crédito de descoberta:
-Backyard Worlds (anãs marrons), Active Asteroids (asteroides com cauda) e Kilonova Seekers (transientes).
+Automatic triage for three [Zooniverse](https://www.zooniverse.org) projects where volunteers get
+discovery credit: **Backyard Worlds: Cool Neighbors** (moving brown dwarfs), **Active Asteroids**
+(asteroids with a tail or coma) and **Kilonova Seekers** (real transients). It pulls the subjects
+currently in each project's queue through the public Panoptes API, scores every subject by image
+analysis, and writes `report.html` ranked best-first, with links to classify and to Talk.
+**Classifying is still done by you, on the Zooniverse site.** *Português abaixo.*
 
-    python3 caca.py --n 40            # todos os projetos
-    python3 caca.py --n 80 --projeto aa
-    python3 caca.py --reusar          # reavalia o último resultado sem baixar de novo
+    pip install -r requirements.txt      # numpy, scipy, Pillow (Python 3.9+)
+    python3 caca.py --n 40               # 40 subjects per project
+    python3 caca.py --n 300 --projeto byw
+    python3 caca.py --reusar             # rescore the last run from the local cache
     open report.html
 
-Baixa os objetos da fila pela API pública (sem login), dá uma nota por análise de imagem
-e gera report.html ordenado, com links para classificar e para o Talk. Quem classifica é você.
+For strong Backyard Worlds candidates (score ≥ 6) the pixel is converted to RA/Dec and checked
+against CatWISE2020 (proper motion > 0.05"/yr at > 5σ) and Gaia DR3 (> 50 mas/yr) on VizieR.
+"NADA … se movendo aqui" means no known moving object there — open it in WiseView and post on Talk.
 
-Validação (rode de novo depois de mexer nos detectores):
+## Detectors and how they were validated (2026-10-22/23)
 
-    python3 testes/injecao_byw.py   # anãs marrons sintéticas em imagens reais
-    python3 testes/injecao_aa.py    # caudas sintéticas em asteroides reais
-    python3 testes/treino_kn.py     # 51 objetos rotulados pela equipe do Kilonova Seekers
-
-Estado em 22/10/2026 (40 objetos por projeto):
-
-| Projeto | Detector | Resultado |
+| Project | Detector | Validation |
 |---|---|---|
-| Backyard Worlds | mediana do 1º terço das 14 épocas contra a do último terço; par claro/escuro; estrelas fixas e saturadas mascaradas (limiar relativo ao fundo) | recupera 88–90% dos movers sintéticos acima do p95 dos limpos; nota máx. sem injeção 4.6 |
-| Active Asteroids | deslocamento do centro de luz da mancha central, penalidade para estrela grudada, mediana dos 5 quadros | recupera 30/50/65% das caudas fraca/média/forte |
-| Kilonova Seekers | log(pico no painel ciência) + log(pico no painel diferença) | AUC 0.84 nos 51 de treino (o s2n do projeto sozinho dá 0.59) |
+| Backyard Worlds | median of the first third of the ~14 epochs vs. the last third; bright/dark pair; stars present in most epochs and stationary saturated stars masked | synthetic movers injected into 300 real subjects: 80 / 71 / 58 % recovered (faint / medium / bright) above the 95th percentile of clean subjects (`testes/injecao_byw.py --n 300`, ~7 min) |
+| Active Asteroids | light-centroid offset of the central blob, penalty for a blended second peak, median over the frames | synthetic tails: 37 / 58 / 66 % (faint / medium / strong) |
+| Kilonova Seekers | log(peak in science panel) + log(peak in difference panel) | AUC 0.84 on the team's 51 labelled training subjects (the project's own s2n alone: 0.59) |
 
-Limitações: amostras pequenas (40–51), caudas e movers sintéticos são idealizados,
-e os detectores não substituem olhar — servem para pôr os promissores no topo.
+In a 1,500-subject Backyard Worlds scan, 29 of 32 strong candidates were real, already-catalogued
+movers (e.g. CWISE J100733.72-455515.8 at 1.96"/yr); the rest were artefacts.
 
-Checagem de catálogo (Backyard Worlds, nota ≥ 6): converte o pixel do candidato em RA/Dec e
-consulta CatWISE2020 (pm > 0.05"/ano e > 5σ) e Gaia DR3 (pm > 50 mas/ano) no VizieR.
-"NADA ... se movendo aqui" = nenhum objeto conhecido em movimento: aí vale abrir no WiseView e postar no Talk.
+    python3 -m unittest discover -s testes -p "test_*.py"   # offline, synthetic images, APIs mocked
+    python3 testes/injecao_byw.py   # needs a previous run: python3 caca.py --n 300 --projeto byw
+    python3 testes/injecao_aa.py    # needs: python3 caca.py --n 100 --projeto aa
+    python3 testes/treino_kn.py     # downloads the labelled training set on first use
 
-Varredura de 22/10/2026 (300 objetos do Backyard Worlds): 12 candidatos fortes, os 12 são
-objetos reais em movimento já catalogados (ex.: CWISE J100733.72-455515.8 a 1.96"/ano).
-Nenhuma descoberta nova, mas confirma que o detector acha movers de verdade.
+## Daily run
+
+`diaria.py` scans 500 Backyard Worlds + 100 Active Asteroids/Kilonova subjects, removes cached
+images older than 3 days, logs one line to `diaria.log`, and raises a desktop notification
+(macOS `osascript`; printed elsewhere) only for a new uncatalogued candidate with score ≥ 8
+(real movers scored 8–40, noise 6–7). Schedule it with launchd or cron.
+
+## Being polite to the APIs
+
+One User-Agent with this repo's URL; retries with 1/2/4 s backoff; 0.3 s between queue pages and
+0.5 s between VizieR lookups. A 500-subject run is ~100 queue requests and a few thousand small PNGs.
+
+---
+
+## Português
+
+Triagem automática de três projetos do Zooniverse que dão crédito de descoberta. Baixa os objetos
+na fila pela API pública, dá uma nota por análise de imagem e gera `report.html` ordenado, com links
+para classificar e para o Talk. A classificação continua sendo sua, no site.
+
+- `pip install -r requirements.txt` e `python3 caca.py --n 40`.
+- Candidatos fortes do Backyard Worlds são conferidos no CatWISE e no Gaia: "NADA se movendo aqui"
+  é o que vale abrir no WiseView e postar no Talk.
+- Validação dos detectores na tabela acima; testes offline em `testes/test_caca.py`.
+- `diaria.py` é a varredura diária com aviso (notificação no macOS).
+
+## License
+
+MIT — see `LICENSE`.
