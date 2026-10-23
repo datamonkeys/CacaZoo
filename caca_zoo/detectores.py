@@ -72,7 +72,7 @@ def nota_aa(imgs: list[str]) -> tuple[float, str]:
         if not ids.size:
             notas.append(0.0)  # alvo não aparece neste quadro
             continue
-        alvo = rot == np.bincount(ids).argmax()
+        alvo = rot == int(np.argmax(np.bincount(ids)))
         area = alvo.sum()
         if area < 6 or area > 3000:
             notas.append(0.0)
