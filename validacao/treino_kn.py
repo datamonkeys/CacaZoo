@@ -1,21 +1,29 @@
 """Mede o detector do Kilonova Seekers contra os 51 objetos de treino que a
-equipe rotulou (real x bogus). Imprime a AUC: 0.5 = chute, 1.0 = perfeito."""
-import json, os, sys
-import numpy as np
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import caca
+equipe rotulou (real x bogus).
 
-from _dados import treino_kn
-subs = treino_kn()
-reais, bogus = [], []
-for s in subs:
-    r = caca.avaliar("kn", s)
-    real = s["metadata"].get("#feedback_1_answer") == "0"
-    (reais if real else bogus).append(r["nota"])
+    python -m validacao.treino_kn     # baixa o conjunto na primeira vez
+"""
 
-def auc(p, n):
-    return np.mean([(a > b) + 0.5 * (a == b) for a in p for b in n])
+from __future__ import annotations
 
-print(f"{len(reais)} reais, {len(bogus)} bogus — AUC {auc(reais, bogus):.2f}")
-s2n = lambda x: float(x["metadata"].get("s2n") or 0)
-print(f"só o s2n do projeto: AUC {auc([s2n(s) for s in subs if s['metadata'].get('#feedback_1_answer') == '0'], [s2n(s) for s in subs if s['metadata'].get('#feedback_1_answer') != '0']):.2f}")
+from caca_zoo.zooniverse import avaliar
+from validacao._dados import auc, treino_kn
+
+
+def main() -> None:
+    reais, bogus, s2n_reais, s2n_bogus = [], [], [], []
+    for s in treino_kn():
+        nota = avaliar("kn", s)["nota"]
+        s2n = float(s["metadata"].get("s2n") or 0)
+        if s["metadata"].get("#feedback_1_answer") == "0":
+            reais.append(nota)
+            s2n_reais.append(s2n)
+        else:
+            bogus.append(nota)
+            s2n_bogus.append(s2n)
+    print(f"{len(reais)} reais, {len(bogus)} bogus — AUC {auc(reais, bogus):.2f}")
+    print(f"só o s2n do projeto: AUC {auc(s2n_reais, s2n_bogus):.2f}")
+
+
+if __name__ == "__main__":
+    main()
