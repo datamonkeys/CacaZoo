@@ -103,7 +103,11 @@ def nota_byw(imgs):
     # estrela saturada: anel preto com miolo que "estoura" em branco em
     # algumas épocas; preenche o miolo (a grade vermelha não chega a 235)
     saturada = ndimage.binary_fill_holes(ndimage.binary_closing(quadros.max(0) > 235, iterations=3))
-    sat = ndimage.binary_dilation(fixo | saturada, iterations=10)
+    # só a saturação de estrela parada; mover brilhante também satura, mas anda
+    rot, _ = ndimage.label(saturada)
+    parada = np.isin(rot, np.unique(rot[fixo & saturada]))
+    parada[rot == 0] = False
+    sat = ndimage.binary_dilation(fixo, iterations=10) | ndimage.binary_dilation(parada, iterations=30)
     pos[sat], neg[sat] = 0, 0
     yp, xp = np.unravel_index(np.argmax(pos), pos.shape)
     # o par negativo tem que estar perto (anã marrom anda poucos pixels)

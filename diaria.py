@@ -10,6 +10,8 @@ import json, os, subprocess, sys, time
 AQUI = os.path.dirname(os.path.abspath(__file__))
 VISTOS = os.path.join(AQUI, "avisados.json")
 LOG = os.path.join(AQUI, "diaria.log")
+# movers reais vistos nas varreduras deram 8–40; ruído fica em 6–7
+AVISO = 8.0
 
 
 def log(msg):
@@ -44,7 +46,7 @@ def main():
 
     itens = json.load(open(os.path.join(AQUI, "resultados.json")))["byw"]
     vistos = set(json.load(open(VISTOS))) if os.path.exists(VISTOS) else set()
-    novos = [i for i in itens if i.get("conhecido", "").startswith("NADA") and i["id"] not in vistos]
+    novos = [i for i in itens if i.get("conhecido", "").startswith("NADA") and i["nota"] >= AVISO and i["id"] not in vistos]
     fortes = sum(1 for i in itens if i.get("conhecido"))
     log(f"{len(itens)} objetos, {fortes} fortes, {len(novos)} possíveis descobertas novas")
     if novos:
