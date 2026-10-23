@@ -1,0 +1,44 @@
+[project]
+name = "cacazoo"
+version = "0.3.0"
+description = "Automatic triage for Zooniverse projects with discovery credit (Backyard Worlds, Active Asteroids, Kilonova Seekers)"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Louis Perner" }]
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.20", "scipy>=1.7", "Pillow>=9", "structlog>=24"]
+
+[project.optional-dependencies]
+sentry = ["sentry-sdk>=2"]
+
+[project.scripts]
+cacazoo = "caca_zoo.cli:main"
+cacazoo-diaria = "caca_zoo.diaria:main"
+
+[project.urls]
+Homepage = "https://github.com/louisperner/CacaZoo"
+
+[dependency-groups]
+dev = ["ruff>=0.6", "mypy>=1.11", "pip-audit>=2.7"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["caca_zoo"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E741"]  # `l` como nome de linha de catálogo é o costume aqui
+
+[tool.mypy]
+python_version = "3.10"  # o mypy atual não confere 3.9; o CI testa em 3.9
+files = ["caca_zoo"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+check_untyped_defs = true

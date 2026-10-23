@@ -6,3 +6,9 @@ diaria.log
 diaria.err
 __pycache__/
 *.tmp
+.venv/
+.venv-ci/
+*.egg-info/
+build/
+.env
+cacazoo.log
