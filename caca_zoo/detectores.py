@@ -51,7 +51,12 @@ def nota_byw(imgs: list[str]) -> tuple[float, str, dict[str, Any]]:
     forca = min(pos[yp, xp], janela[yn, xn])
     nota = float(forca) if dist > 4 else float(forca) * 0.3
     xo, yo = xn + max(0, xp - r), yn + max(0, yp - r)  # onde o objeto estava no começo
-    extra = {"pos": [xp, yp], "lado": [int(d.shape[1]), int(d.shape[0])], "cor": cor_byw(imgs, t, (xp, yp), (xo, yo))}
+    extra = {
+        "pos": [xp, yp],
+        "inicio": [xo, yo],
+        "lado": [int(d.shape[1]), int(d.shape[0])],
+        "cor": cor_byw(imgs, t, (xp, yp), (xo, yo)),
+    }
     motivo = f"par claro/escuro de {forca:.1f}σ, deslocamento {dist:.0f}px em ({xp},{yp})"
     cor = extra["cor"]
     if isinstance(cor, float):

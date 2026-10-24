@@ -18,6 +18,9 @@ class TesteBYW(unittest.TestCase):
         self.assertLess(abs(y - 200), 15)
         self.assertGreater(x, 190)  # aponta para o fim do trajeto
         self.assertEqual(extra["lado"], [400, 400])
+        xi, yi = extra["inicio"]
+        self.assertLess(xi, x)  # o objeto anda para a direita nos quadros sintéticos
+        self.assertLess(abs(yi - 200), 15)
 
     def test_cor_laranja_e_azul(self):
         with tempfile.TemporaryDirectory() as d:
