@@ -56,6 +56,8 @@ def nota_byw(imgs: list[str]) -> tuple[float, str, dict[str, Any]]:
     cor = extra["cor"]
     if isinstance(cor, float):
         motivo += f", cor {cor:+.2f} ({'avermelhado, W2' if cor > 0 else 'azulado, W1'})"
+        # informativa: nos movers catalogados seguiu o W1−W2 do CatWISE (r = 0.87), mas o
+        # ruído também sai avermelhado (fundo do W2), então não entra na nota
     return nota, motivo, extra
 
 

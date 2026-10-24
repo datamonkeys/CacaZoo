@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -25,6 +26,15 @@ class TesteBYW(unittest.TestCase):
             azul = detectores.nota_byw(quadros_byw(d, cor=(1.0, 0.8, 0.3)))[2]["cor"]
         self.assertGreater(laranja, 0.3)
         self.assertLess(azul, -0.3)
+
+    def test_cor_nao_mexe_na_nota(self):
+        with tempfile.TemporaryDirectory() as d:
+            imgs = quadros_byw(d)
+            base = detectores.nota_byw(imgs)[0]
+            with mock.patch.object(detectores, "cor_byw", return_value=0.9):
+                nota, motivo, extra = detectores.nota_byw(imgs)
+        self.assertAlmostEqual(nota, base, places=6)
+        self.assertIn("avermelhado", motivo)
 
     def test_campo_parado_tem_nota_baixa(self):
         with tempfile.TemporaryDirectory() as d:

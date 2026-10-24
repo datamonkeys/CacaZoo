@@ -55,6 +55,12 @@ separate these from real movers — catalogued movers also sit next to bright st
 was left as is: a false alarm is cheaper than a missed mover. When an alert arrives, check first
 whether the pair sits on the edge of a big saturated star.
 
+Nebulae do the same: on 2026-10-23 a "pair" scoring 24.8 sat in the Orion Nebula (M42). The
+background there (154) is bright, but real catalogued movers were found in fields as bright as 234,
+so no background cut was added. The mover's colour (W1 shows blue, W2 orange in these images) is
+measured and shown in the report — it tracked CatWISE W1−W2 with r = 0.87 on 16 catalogued movers and
+picked the two coldest (W1−W2 ≈ +3.5) — but noise also comes out reddish, so it is not in the score.
+
 ## Daily run
 
 `cacazoo-diaria` (or `python3 diaria.py`) scans 500 Backyard Worlds + 100 Active Asteroids/Kilonova
