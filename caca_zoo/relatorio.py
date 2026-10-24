@@ -31,7 +31,9 @@ def cartao(chave: str, proj: dict[str, Any], it: dict[str, Any]) -> str:
     if it.get("conhecido"):
         ceu = it.get("ceu")
         onde = f" <small>RA {ceu[0]} Dec {ceu[1]}</small>" if ceu else ""
-        catalogo = f"<b>{html.escape(it['conhecido'])}</b>{onde}<br>"
+        cor = it.get("cor_catwise")
+        w12 = f" <small>W1−W2 do catálogo {cor:+.2f}</small>" if cor is not None else ""
+        catalogo = f"<b>{html.escape(it['conhecido'])}</b>{onde}{w12}<br>"
     classificar = f"{base}/classify/workflow/{proj['workflow']}/subject/{it['id']}"
     return (
         f'<div class="c"><div class="n">{it["nota"]}</div><div>{tags}<br>'

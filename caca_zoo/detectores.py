@@ -50,8 +50,28 @@ def nota_byw(imgs: list[str]) -> tuple[float, str, dict[str, Any]]:
     dist = np.hypot(yn + max(0, yp - r) - yp, xn + max(0, xp - r) - xp)
     forca = min(pos[yp, xp], janela[yn, xn])
     nota = float(forca) if dist > 4 else float(forca) * 0.3
-    extra = {"pos": [xp, yp], "lado": [int(d.shape[1]), int(d.shape[0])]}
-    return nota, f"par claro/escuro de {forca:.1f}σ, deslocamento {dist:.0f}px em ({xp},{yp})", extra
+    xo, yo = xn + max(0, xp - r), yn + max(0, yp - r)  # onde o objeto estava no começo
+    extra = {"pos": [xp, yp], "lado": [int(d.shape[1]), int(d.shape[0])], "cor": cor_byw(imgs, t, (xp, yp), (xo, yo))}
+    motivo = f"par claro/escuro de {forca:.1f}σ, deslocamento {dist:.0f}px em ({xp},{yp})"
+    if extra["cor"] is not None:
+        motivo += f", cor {extra['cor']:+.2f} ({'avermelhado, W2' if extra['cor'] > 0 else 'azulado, W1'})"
+    return nota, motivo, extra
+
+
+def cor_byw(imgs: list[str], t: int, fim: tuple[int, int], inicio: tuple[int, int], r: int = 6) -> float | None:
+    """Cor do objeto nas imagens do Backyard Worlds, onde W1 é azul e W2 laranja: quanto
+    ele escurece o canal azul contra o vermelho (no fim do trajeto nas últimas épocas e
+    no começo nas primeiras). > 0 = mais brilhante em W2, como uma anã marrom."""
+    rgb = np.array([np.asarray(Image.open(p).convert("RGB"), np.float32) for p in imgs])
+    medidas = []
+    for pilha, (x, y) in ((rgb[-t:], fim), (rgb[:t], inicio)):
+        img = 255 - np.median(pilha, 0)  # escurecimento por canal
+        fundo = np.median(img.reshape(-1, 3), 0)
+        janela = img[max(0, y - r) : y + r + 1, max(0, x - r) : x + r + 1].reshape(-1, 3) - fundo
+        vermelho, azul = float(janela[:, 0].clip(0).sum()), float(janela[:, 2].clip(0).sum())
+        if vermelho + azul > 50:
+            medidas.append((azul - vermelho) / (azul + vermelho))
+    return round(float(np.mean(medidas)), 3) if medidas else None
 
 
 def nota_aa(imgs: list[str]) -> tuple[float, str]:

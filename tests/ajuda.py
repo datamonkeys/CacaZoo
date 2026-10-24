@@ -17,7 +17,7 @@ def mancha(h, w, x, y, amp, sig):
     return amp * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * sig**2))
 
 
-def quadros_byw(d, mover=True):
+def quadros_byw(d, mover=True, cor=(1.0, 1.0, 1.0)):
     """12 épocas no fundo branco: uma estrela parada e (opcional) uma anã marrom andando."""
     rng = np.random.default_rng(0)
     h = w = 400
@@ -25,8 +25,10 @@ def quadros_byw(d, mover=True):
     out = []
     for k in range(12):
         x = 150 + 6 * k if mover else 150
-        escuro = fixa + mancha(h, w, x, 200, 120, 10) + rng.normal(0, 2, (h, w))
-        out.append(salvar(d, f"q{k}.png", np.repeat((255 - escuro)[..., None], 3, 2)))
+        objeto = mancha(h, w, x, 200, 120, 10)
+        # escurecimento por canal (R, G, B): laranja = escurece mais o azul = brilhante em W2
+        img = np.stack([255 - fixa - objeto * c - rng.normal(0, 2, (h, w)) for c in cor], axis=-1)
+        out.append(salvar(d, f"q{k}.png", img))
     return out
 
 

@@ -22,11 +22,12 @@ def ceu_byw(meta: dict[str, Any], xp: float, yp: float, largura: int = 946, altu
     return ra0 - dx / 3600 / np.cos(np.radians(de0)), de0 - dy / 3600
 
 
-def catwise_movendo(ra: float, dec: float, raio: float = 40) -> list[tuple[str, float]] | None:
-    """Fontes do CatWISE2020 com movimento próprio > 0.05"/ano e > 5σ perto da posição."""
+def catwise_movendo(ra: float, dec: float, raio: float = 40) -> list[tuple[str, float, float | None]] | None:
+    """Fontes do CatWISE2020 com movimento próprio > 0.05"/ano e > 5σ perto da posição:
+    (nome, pm em "/ano, cor W1−W2 ou None). Anã marrom: W1−W2 alto (T: > 1)."""
     url = (
         "https://vizier.cds.unistra.fr/viz-bin/asu-tsv?-source=II/365/catwise"
-        f"&-c={ra:.5f}%20{dec:+.5f}&-c.rs={raio}&-out=Name,pmRA,pmDE,e_pmRA,e_pmDE&-out.max=50"
+        f"&-c={ra:.5f}%20{dec:+.5f}&-c.rs={raio}&-out=Name,pmRA,pmDE,e_pmRA,e_pmDE,W1mproPM,W2mproPM&-out.max=50"
     )
     try:
         linhas = abrir(url, 30, tentativas=3).decode().splitlines()
@@ -35,14 +36,18 @@ def catwise_movendo(ra: float, dec: float, raio: float = 40) -> list[tuple[str, 
     achados = []
     for l in linhas:
         p = l.split("\t")
-        if len(p) == 5 and p[0].startswith("J"):
+        if len(p) == 7 and p[0].startswith("J"):
             try:
                 pm = float(np.hypot(float(p[1]), float(p[2])))
                 erro = float(np.hypot(float(p[3]), float(p[4])))
             except ValueError:
                 continue
+            try:
+                cor: float | None = round(float(p[5]) - float(p[6]), 2)
+            except ValueError:
+                cor = None
             if pm > 0.05 and pm > 5 * erro:  # pm do CatWISE é ruidoso em fonte fraca
-                achados.append((p[0].strip(), round(pm, 2)))
+                achados.append((p[0].strip(), round(pm, 2), cor))
     return sorted(achados, key=lambda x: -x[1])
 
 
@@ -76,8 +81,10 @@ def checar_conhecidos(itens: list[dict[str, Any]], corte: float = 6.0) -> None:
             continue
         ra, dec = ceu_byw(it["meta"], *it["pos"], *it.get("lado", (946, 946)))
         cw, ga = catwise_movendo(ra, dec), gaia_movendo(ra, dec)
-        mov = sorted([("CWISE " + n, pm) for n, pm in cw or []] + (ga or []), key=lambda x: -x[1])
+        mov = sorted([("CWISE " + n, pm) for n, pm, _ in cw or []] + (ga or []), key=lambda x: -x[1])
         it["ceu"] = (round(ra, 5), round(dec, 5))
+        if cw:
+            it["cor_catwise"] = max(cw, key=lambda x: x[1])[2]  # W1−W2 do mover mais rápido
         if mov:  # basta um catálogo achar algo se movendo
             it["conhecido"] = "já catalogado: " + ", ".join(f'{n} ({pm}"/ano)' for n, pm in mov[:2])
         elif cw is None or ga is None:  # sem os dois não dá para dizer que é novo

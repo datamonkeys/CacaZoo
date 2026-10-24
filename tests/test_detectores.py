@@ -18,6 +18,14 @@ class TesteBYW(unittest.TestCase):
         self.assertGreater(x, 190)  # aponta para o fim do trajeto
         self.assertEqual(extra["lado"], [400, 400])
 
+    def test_cor_laranja_e_azul(self):
+        with tempfile.TemporaryDirectory() as d:
+            laranja = detectores.nota_byw(quadros_byw(d, cor=(0.3, 0.6, 1.0)))[2]["cor"]
+        with tempfile.TemporaryDirectory() as d:
+            azul = detectores.nota_byw(quadros_byw(d, cor=(1.0, 0.8, 0.3)))[2]["cor"]
+        self.assertGreater(laranja, 0.3)
+        self.assertLess(azul, -0.3)
+
     def test_campo_parado_tem_nota_baixa(self):
         with tempfile.TemporaryDirectory() as d:
             nota, _, _ = detectores.nota_byw(quadros_byw(d, mover=False))

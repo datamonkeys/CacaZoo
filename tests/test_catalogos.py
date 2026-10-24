@@ -60,9 +60,12 @@ class TesteChecagem(unittest.TestCase):
 
 class TesteCatalogosParse(unittest.TestCase):
     def test_catwise_filtra_por_significancia(self):
-        tsv = "#\nName\tpmRA\tpmDE\te_pmRA\te_pmDE\n----\nJ1\t0.5\t0.0\t0.01\t0.01\nJ2\t0.06\t0.0\t0.05\t0.05\n"
+        tsv = (
+            "#\nName\tpmRA\tpmDE\te_pmRA\te_pmDE\tW1\tW2\n----\n"
+            "J1\t0.5\t0.0\t0.01\t0.01\t15.0\t13.8\nJ2\t0.06\t0.0\t0.05\t0.05\t14\t14\n"
+        )
         with mock.patch.object(catalogos, "abrir", return_value=tsv.encode()):
-            self.assertEqual(catalogos.catwise_movendo(1, 2), [("J1", 0.5)])
+            self.assertEqual(catalogos.catwise_movendo(1, 2), [("J1", 0.5, 1.2)])
 
     def test_gaia_converte_mas_por_ano(self):
         tsv = "Source\tpmRA\tpmDE\n123\t300\t400\n456\t10\t0\n"
