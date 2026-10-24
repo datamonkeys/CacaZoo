@@ -2,12 +2,47 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any
 
 import numpy as np
 
 from .rede import abrir
+
+
+class Disjuntor:
+    """Depois de `limite` falhas seguidas, desiste na hora até a próxima resposta boa
+    (ou a próxima rodada). Sem isso, um VizieR fora do ar custa ~90 s por candidato."""
+
+    def __init__(self, limite: int = 3) -> None:
+        self.limite = limite
+        self.falhas = 0
+        self._trava = threading.Lock()
+
+    @property
+    def aberto(self) -> bool:
+        return self.falhas >= self.limite
+
+    def resultado(self, ok: bool) -> None:
+        with self._trava:
+            self.falhas = 0 if ok else self.falhas + 1
+
+
+VIZIER = Disjuntor()
+
+
+def consultar_vizier(url: str) -> list[str]:
+    """Linhas da resposta; levanta OSError se o VizieR falhou ou o disjuntor está aberto."""
+    if VIZIER.aberto:
+        raise OSError("VizieR fora do ar nesta rodada")
+    try:
+        linhas = abrir(url, 30, tentativas=3).decode().splitlines()
+    except Exception:
+        VIZIER.resultado(False)
+        raise
+    VIZIER.resultado(True)
+    return linhas
 
 
 def ceu_byw(meta: dict[str, Any], xp: float, yp: float, largura: int = 946, altura: int = 946) -> tuple[float, float]:
@@ -30,7 +65,7 @@ def catwise_movendo(ra: float, dec: float, raio: float = 40) -> list[tuple[str, 
         f"&-c={ra:.5f}%20{dec:+.5f}&-c.rs={raio}&-out=Name,pmRA,pmDE,e_pmRA,e_pmDE,W1mproPM,W2mproPM&-out.max=50"
     )
     try:
-        linhas = abrir(url, 30, tentativas=3).decode().splitlines()
+        linhas = consultar_vizier(url)
     except Exception:
         return None  # sem resposta: não dá para afirmar nada
     achados = []
@@ -58,7 +93,7 @@ def gaia_movendo(ra: float, dec: float, raio: float = 40) -> list[tuple[str, flo
         f"&-c={ra:.5f}%20{dec:+.5f}&-c.rs={raio}&-out=Source,pmRA,pmDE&-out.max=50"
     )
     try:
-        linhas = abrir(url, 30, tentativas=3).decode().splitlines()
+        linhas = consultar_vizier(url)
     except Exception:
         return None
     achados = []

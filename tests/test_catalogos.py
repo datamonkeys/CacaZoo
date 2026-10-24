@@ -58,6 +58,27 @@ class TesteChecagem(unittest.TestCase):
         self.assertNotIn("conhecido", item)
 
 
+class TesteDisjuntor(unittest.TestCase):
+    def setUp(self):
+        catalogos.VIZIER.falhas = 0
+
+    def tearDown(self):
+        catalogos.VIZIER.falhas = 0
+
+    def test_para_de_tentar_depois_de_falhas(self):
+        with mock.patch.object(catalogos, "abrir", side_effect=OSError()) as abrir:
+            for _ in range(6):
+                self.assertIsNone(catalogos.catwise_movendo(1, 2))
+        self.assertEqual(abrir.call_count, catalogos.VIZIER.limite)
+        self.assertTrue(catalogos.VIZIER.aberto)
+
+    def test_sucesso_zera(self):
+        catalogos.VIZIER.resultado(False)
+        with mock.patch.object(catalogos, "abrir", return_value=b"Source\tpmRA\tpmDE\n"):
+            catalogos.gaia_movendo(1, 2)
+        self.assertEqual(catalogos.VIZIER.falhas, 0)
+
+
 class TesteCatalogosParse(unittest.TestCase):
     def test_catwise_filtra_por_significancia(self):
         tsv = (
